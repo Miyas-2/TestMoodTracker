@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Mood Tracker with AI Suggestion</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 700px;
+      margin: auto;
+      padding: 20px;
+      background: #f9fafb;
+    }
+    textarea {
+      width: 100%;
+      margin-top: 5px;
+    }
+    button {
+      padding: 10px 15px;
+      background-color: #4f46e5;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #4338ca;
+    }
+    .card {
+      margin-top: 20px;
+      background: #f0fdf4;
+      padding: 15px;
+      border-radius: 10px;
+    }
+  </style>
+  <script>
+    async function getLocationAndData() {
+      const status = document.getElementById("status");
+      status.innerText = "📍 Mengambil lokasi...";
+
+      if (!navigator.geolocation) {
+        status.innerText = "❌ Geolocation tidak didukung.";
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(async (position) => {
+        const lat = position.coords.latitude.toFixed(4);
+        const lon = position.coords.longitude.toFixed(4);
+
+        status.innerText = "🌐 Mengambil data cuaca...";
+        const weatherRes = await fetch(`https://api.weatherapi.com/v1/current.json?key=6ea19653e8744437bb5123133252305&q=${lat},${lon}&aqi=yes`);
+        const weatherData = await weatherRes.json();
+
+        const locationName = `${weatherData.location.name}, ${weatherData.location.region}, ${weatherData.location.country}`;
+        const condition = weatherData.current.condition.text;
+        const temp = weatherData.current.temp_c;
+        const uv = weatherData.current.uv;
+        const aqi = weatherData.current.air_quality.pm2_5;
+
+        document.getElementById("location").innerText = `📍 Lokasi: ${lat}, ${lon} (${locationName})`;
+        document.getElementById("weather").innerHTML = `
+          🌡️ Suhu: ${temp}°C<br>
+          ⛅ Kondisi: ${condition}<br>
+          ☀️ UV Index: ${uv}<br>
+          🌫️ AQI (PM2.5): ${aqi.toFixed(2)}
+        `;
+
+        window.currentWeather = weatherData;
+        status.innerText = "✅ Siap untuk analisis mood!";
+      }, () => {
+        status.innerText = "❌ Gagal mengambil lokasi.";
+      });
+    }
+
+    async function analyzeMood() {
+      const text = document.getElementById("sentimentInput").value.trim();
+      if (!text) return alert("Masukkan perasaanmu dulu.");
+
+      const sentimentRes = await fetch(`http://127.0.0.1:5000/predict?text=${encodeURIComponent(text)}`);
+      const sentimentData = await sentimentRes.json();
+
+      const resultText = `
+        🔍 Hasil Sentimen: <strong>${sentimentData.prediksi}</strong><br>
+        😞 Negatif: ${sentimentData.negatif}%<br>
+        😐 Netral: ${sentimentData.netral}%<br>
+        😊 Positif: ${sentimentData.positif}%
+      `;
+      document.getElementById("sentimentResult").innerHTML = resultText;
+
+      const aiSuggestion = await getAISuggestion(text, window.currentWeather, sentimentData);
+      document.getElementById("saranResult").innerHTML = `💡 <strong>Saran dari AI:</strong><br>${aiSuggestion}`;
+    }
+
+    async function getAISuggestion(userText, dataCuaca, dataSentimen) {
+      const prompt = `
+Buatkan saran ringan dan positif untuk pengguna yang menulis:
+"${userText}". Cuaca saat ini: ${dataCuaca.current.condition.text}, suhu ${dataCuaca.current.temp_c}°C, AQI ${dataCuaca.current.air_quality.pm2_5.toFixed(1)}, UV Index ${dataCuaca.current.uv}. 
+Lokasi: ${dataCuaca.location.name}, ${dataCuaca.location.region}, ${dataCuaca.location.country}. 
+Mood berdasarkan analisis sentimen: ${dataSentimen.prediksi}.
+      `.trim();
+
+      const url = `https://api.ryzumi.vip/api/ai/chatgpt?text=halo&prompt=${encodeURIComponent(prompt)}&session=`;
+
+      try {
+        const response = await fetch(url);
+        const result = await response.json();
+        return result.result || "Tidak ada saran dari AI.";
+      } catch (err) {
+        console.error("Gagal ambil saran AI:", err);
+        return "❌ Gagal mengambil saran dari AI.";
+      }
+    }
+
+    window.onload = getLocationAndData;
+  </script>
+</head>
+<body>
+  <h2>🌍 Mood Tracker (with GPS, AI Suggestion)</h2>
+  <p id="status">⏳ Menyiapkan...</p>
+  <p id="location">📍 Lokasi: -</p>
+  <p id="weather">🌡️ Suhu: -<br>⛅ Kondisi: -<br>☀️ UV Index: -<br>🌫️ AQI (PM2.5): -</p>
+
+  <hr>
+
+  <label for="sentimentInput"><strong>📝 Bagaimana perasaanmu hari ini?</strong></label><br>
+  <textarea id="sentimentInput" rows="3"></textarea><br><br>
+  <button onclick="analyzeMood()">🔍 Analisis Sentimen</button>
+
+  <div id="sentimentResult" class="card"></div>
+  <div id="saranResult" class="card"></div>
+</body>
+</html>
