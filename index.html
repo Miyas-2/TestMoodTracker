@@ -2,131 +2,216 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mood Tracker with AI Suggestion</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      max-width: 700px;
-      margin: auto;
-      padding: 20px;
-      background: #f9fafb;
-    }
-    textarea {
-      width: 100%;
-      margin-top: 5px;
-    }
-    button {
-      padding: 10px 15px;
-      background-color: #4f46e5;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #4338ca;
-    }
-    .card {
-      margin-top: 20px;
-      background: #f0fdf4;
-      padding: 15px;
-      border-radius: 10px;
-    }
-  </style>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+
+<body class="bg-gray-50 min-h-screen py-8 px-4">
+  <div class="max-w-2xl mx-auto bg-white rounded-xl shadow-md overflow-hidden p-6 space-y-6">
+    <!-- Header -->
+    <div class="text-center">
+      <h1 class="text-3xl font-bold text-indigo-600 mb-2">
+        <i class="fas fa-globe-asia mr-2"></i>Mood Tracker
+      </h1>
+      <p class="text-gray-500">Dengan GPS & Saran AI</p>
+    </div>
+
+    <!-- Location and Weather Info -->
+    <div class="bg-indigo-50 rounded-lg p-4 space-y-3">
+      <div class="flex items-center">
+        <i class="fas fa-spinner fa-spin text-indigo-500 mr-2"></i>
+        <p id="status" class="text-sm font-medium text-gray-700">⏳ Menyiapkan...</p>
+      </div>
+      
+      <div class="flex items-start">
+        <i class="fas fa-map-marker-alt text-red-500 mt-1 mr-2"></i>
+        <p id="location" class="text-sm text-gray-600">📍 Lokasi: -</p>
+      </div>
+      
+      <div id="weather" class="grid grid-cols-2 gap-2 text-sm text-gray-600">
+        <div><i class="fas fa-temperature-low mr-1 text-blue-500"></i> Suhu: -</div>
+        <div><i class="fas fa-cloud mr-1 text-gray-500"></i> Kondisi: -</div>
+        <div><i class="fas fa-sun mr-1 text-yellow-500"></i> UV Index: -</div>
+        <div><i class="fas fa-smog mr-1 text-gray-400"></i> AQI (PM2.5): -</div>
+      </div>
+    </div>
+
+    <hr class="border-gray-200">
+
+    <!-- Mood Input -->
+    <div class="space-y-3">
+      <label for="sentimentInput" class="block text-lg font-medium text-gray-700">
+        <i class="fas fa-pencil-alt mr-2 text-indigo-500"></i>Bagaimana perasaanmu hari ini?
+      </label>
+      <textarea 
+        id="sentimentInput" 
+        rows="4" 
+        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+        placeholder="Tuliskan perasaanmu hari ini..."></textarea>
+      
+      <button 
+        onclick="analyzeMood()"
+        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition duration-200 flex items-center justify-center">
+        <i class="fas fa-search mr-2"></i> Analisis Emosi
+      </button>
+    </div>
+
+    <!-- Results -->
+    <div id="sentimentResult" class="hidden bg-green-50 rounded-lg p-4 space-y-2 border border-green-100">
+      <h3 class="font-bold text-green-800 flex items-center">
+        <i class="fas fa-search mr-2"></i> Hasil Analisis Emosi
+      </h3>
+      <div class="text-sm text-gray-700" id="resultContent"></div>
+    </div>
+
+    <div id="saranResult" class="hidden bg-blue-50 rounded-lg p-4 space-y-2 border border-blue-100">
+      <h3 class="font-bold text-blue-800 flex items-center">
+        <i class="fas fa-lightbulb mr-2"></i> Saran dari AI
+      </h3>
+      <div class="text-sm text-gray-700" id="saranContent"></div>
+    </div>
+  </div>
+
   <script>
     async function getLocationAndData() {
       const status = document.getElementById("status");
-      status.innerText = "📍 Mengambil lokasi...";
-
+      status.innerHTML = '<i class="fas fa-map-marker-alt mr-2 text-indigo-500"></i> Mengambil lokasi...';
+      
       if (!navigator.geolocation) {
-        status.innerText = "❌ Geolocation tidak didukung.";
+        status.innerHTML = '<i class="fas fa-exclamation-circle mr-2 text-red-500"></i> Geolocation tidak didukung.';
         return;
       }
 
       navigator.geolocation.getCurrentPosition(async (position) => {
         const lat = position.coords.latitude.toFixed(4);
         const lon = position.coords.longitude.toFixed(4);
+        status.innerHTML = '<i class="fas fa-cloud-sun mr-2 text-indigo-500"></i> Mengambil data cuaca...';
 
-        status.innerText = "🌐 Mengambil data cuaca...";
-        const weatherRes = await fetch(`https://api.weatherapi.com/v1/current.json?key=6ea19653e8744437bb5123133252305&q=${lat},${lon}&aqi=yes`);
-        const weatherData = await weatherRes.json();
+        try {
+          const weatherRes = await fetch(`https://api.weatherapi.com/v1/current.json?key=6ea19653e8744437bb5123133252305&q=${lat},${lon}&aqi=yes`);
+          const weatherData = await weatherRes.json();
 
-        const locationName = `${weatherData.location.name}, ${weatherData.location.region}, ${weatherData.location.country}`;
-        const condition = weatherData.current.condition.text;
-        const temp = weatherData.current.temp_c;
-        const uv = weatherData.current.uv;
-        const aqi = weatherData.current.air_quality.pm2_5;
+          const locationName = `${weatherData.location.name}, ${weatherData.location.region}, ${weatherData.location.country}`;
+          const condition = weatherData.current.condition.text;
+          const temp = weatherData.current.temp_c;
+          const uv = weatherData.current.uv;
+          const aq = weatherData.current.air_quality;
 
-        document.getElementById("location").innerText = `📍 Lokasi: ${lat}, ${lon} (${locationName})`;
-        document.getElementById("weather").innerHTML = `
-          🌡️ Suhu: ${temp}°C<br>
-          ⛅ Kondisi: ${condition}<br>
-          ☀️ UV Index: ${uv}<br>
-          🌫️ AQI (PM2.5): ${aqi.toFixed(2)}
-        `;
+          const aqiDisplay = `
+            <div><i class="fas fa-smog mr-1 text-gray-400"></i> AQI (PM2.5): ${aq.pm2_5.toFixed(2)}</div>
+            <div><i class="fas fa-smog mr-1 text-gray-400"></i> AQI (PM10): ${aq.pm10.toFixed(2)}</div>
+            <div><i class="fas fa-flask mr-1 text-purple-400"></i> CO: ${aq.co.toFixed(1)} µg/m³</div>
+            <div><i class="fas fa-flask mr-1 text-purple-400"></i> NO₂: ${aq.no2.toFixed(1)} µg/m³</div>
+            <div><i class="fas fa-flask mr-1 text-purple-400"></i> O₃: ${aq.o3.toFixed(1)} µg/m³</div>
+            <div><i class="fas fa-flask mr-1 text-purple-400"></i> SO₂: ${aq.so2.toFixed(1)} µg/m³</div>
+            <div><i class="fas fa-tag mr-1 text-blue-400"></i> EPA Index: ${aq["us-epa-index"]}</div>
+            <div><i class="fas fa-tag mr-1 text-blue-400"></i> DEFRA Index: ${aq["gb-defra-index"]}</div>
+          `;
 
-        window.currentWeather = weatherData;
-        status.innerText = "✅ Siap untuk analisis mood!";
+          document.getElementById("location").innerHTML = `<i class="fas fa-map-marker-alt mr-1 text-red-500"></i> Lokasi: ${lat}, ${lon} (${locationName})`;
+          document.getElementById("weather").innerHTML = `
+            <div><i class="fas fa-temperature-low mr-1 text-blue-500"></i> Suhu: ${temp}°C</div>
+            <div><i class="fas fa-cloud mr-1 text-gray-500"></i> Kondisi: ${condition}</div>
+            <div><i class="fas fa-sun mr-1 text-yellow-500"></i> UV Index: ${uv}</div>
+            ${aqiDisplay}
+          `;
+
+          window.currentWeather = weatherData;
+          status.innerHTML = '<i class="fas fa-check-circle mr-2 text-green-500"></i> Siap untuk analisis emosi!';
+        } catch (error) {
+          status.innerHTML = '<i class="fas fa-exclamation-circle mr-2 text-red-500"></i> Gagal mengambil data cuaca.';
+          console.error("Error fetching weather:", error);
+        }
       }, () => {
-        status.innerText = "❌ Gagal mengambil lokasi.";
+        status.innerHTML = '<i class="fas fa-exclamation-circle mr-2 text-red-500"></i> Gagal mengambil lokasi.';
       });
     }
 
     async function analyzeMood() {
       const text = document.getElementById("sentimentInput").value.trim();
-      if (!text) return alert("Masukkan perasaanmu dulu.");
+      if (!text) {
+        alert("Masukkan perasaanmu dulu.");
+        return;
+      }
 
-      const sentimentRes = await fetch(`http://127.0.0.1:5000/predict?text=${encodeURIComponent(text)}`);
-      const sentimentData = await sentimentRes.json();
+      try {
+        const sentimentRes = await fetch(`http://127.0.0.1:5000/predict?text=${encodeURIComponent(text)}`);
+        const sentimentData = await sentimentRes.json();
 
-      const resultText = `
-        🔍 Hasil Sentimen: <strong>${sentimentData.prediksi}</strong><br>
-        😞 Negatif: ${sentimentData.negatif}%<br>
-        😐 Netral: ${sentimentData.netral}%<br>
-        😊 Positif: ${sentimentData.positif}%
-      `;
-      document.getElementById("sentimentResult").innerHTML = resultText;
+        if (sentimentData.error) {
+          throw new Error(sentimentData.error);
+        }
 
-      const aiSuggestion = await getAISuggestion(text, window.currentWeather, sentimentData);
-      document.getElementById("saranResult").innerHTML = `💡 <strong>Saran dari AI:</strong><br>${aiSuggestion}`;
+        let resultText = `<div class="mb-3"><span class="font-medium">Emosi Utama:</span> <span class="font-bold text-green-600">${sentimentData.top_prediction.label}</span> (${sentimentData.top_prediction.confidence}%)</div>`;
+        resultText += `<div class="border-t border-green-200 pt-2"><span class="font-medium">Detail semua prediksi:</span><ul class="list-disc pl-5 mt-1">`;
+
+        for (const [label, value] of Object.entries(sentimentData.all_predictions)) {
+          resultText += `<li class="py-1"><span class="font-medium">${label}:</span> ${value}%</li>`;
+        }
+
+        resultText += `</ul></div>`;
+
+        const resultDiv = document.getElementById("sentimentResult");
+        const resultContent = document.querySelector("#resultContent");
+        resultContent.innerHTML = resultText;
+        resultDiv.classList.remove("hidden");
+
+        const aiSuggestion = await getAISuggestion(text, window.currentWeather, sentimentData);
+        const saranDiv = document.getElementById("saranResult");
+        const saranContent = document.querySelector("#saranContent");
+        saranContent.innerHTML = aiSuggestion;
+        saranDiv.classList.remove("hidden");
+
+        // Smooth scroll to results
+        resultDiv.scrollIntoView({ behavior: 'smooth' });
+
+      } catch (error) {
+        alert(`Terjadi kesalahan: ${error.message}`);
+        console.error("Error analyzing mood:", error);
+      }
     }
 
-    async function getAISuggestion(userText, dataCuaca, dataSentimen) {
+    async function getAISuggestion(userText, dataCuaca, dataEmosi) {
       const prompt = `
-Buatkan saran ringan dan positif untuk pengguna yang menulis:
-"${userText}". Cuaca saat ini: ${dataCuaca.current.condition.text}, suhu ${dataCuaca.current.temp_c}°C, AQI ${dataCuaca.current.air_quality.pm2_5.toFixed(1)}, UV Index ${dataCuaca.current.uv}. 
-Lokasi: ${dataCuaca.location.name}, ${dataCuaca.location.region}, ${dataCuaca.location.country}. 
-Mood berdasarkan analisis sentimen: ${dataSentimen.prediksi}.
-      `.trim();
+Kamu adalah asisten ramah yang memberikan saran positif dan sederhana untuk pengguna berdasarkan pesan mereka, kondisi cuaca, kualitas udara, dan suasana hati.
 
-      const url = `https://api.ryzumi.vip/api/ai/chatgpt?text=halo&prompt=${encodeURIComponent(prompt)}&session=`;
+Saranmu harus:
+- Relevan dengan kondisi cuaca dan kualitas udara saat ini.
+- Menyemangati pengguna untuk menjalani hari dengan semangat.
+- Mendorong kegiatan yang sejalan dengan tujuan pembangunan berkelanjutan (SDGs), seperti:
+  - Gaya hidup ramah lingkungan (hemat energi, kurangi sampah, tanam pohon).
+  - Kesehatan dan kesejahteraan (aktivitas fisik ringan, istirahat cukup, olahraga).
+  - Inovasi digital atau kegiatan kecil berbasis teknologi yang berdampak positif.
+
+Berikan peringatan ramah jika kualitas udara buruk (EPA Index ≥ 3 atau PM2.5 ≥ 50), misalnya anjurkan pakai masker, hindari aktivitas luar, atau tetap di dalam ruangan.
+
+Data:
+- Cuaca: ${dataCuaca.current.condition.text}, suhu: ${dataCuaca.current.temp_c}°C, UV Index: ${dataCuaca.current.uv}
+- Kualitas udara:
+  - PM2.5: ${dataCuaca.current.air_quality.pm2_5.toFixed(1)}
+  - PM10: ${dataCuaca.current.air_quality.pm10.toFixed(1)}
+  - EPA Index: ${dataCuaca.current.air_quality["us-epa-index"]}
+- Lokasi: ${dataCuaca.location.name}, ${dataCuaca.location.region}, ${dataCuaca.location.country}
+- Emosi pengguna: ${dataEmosi.top_prediction.label}
+
+Balasanmu harus singkat (1-2 kalimat), hangat, dan menggunakan bahasa Indonesia yang bersahabat.
+`.trim();
+
+      const url = `https://api.ryzumi.vip/api/ai/chatgpt?text=${encodeURIComponent(userText)}&prompt=${encodeURIComponent(prompt)}&session=`;
 
       try {
         const response = await fetch(url);
         const result = await response.json();
-        return result.result || "Tidak ada saran dari AI.";
+        return result.result || "Tidak ada saran dari AI saat ini.";
       } catch (err) {
         console.error("Gagal ambil saran AI:", err);
-        return "❌ Gagal mengambil saran dari AI.";
+        return '<div class="text-red-500"><i class="fas fa-exclamation-circle mr-2"></i> Gagal mengambil saran dari AI.</div>';
       }
     }
 
     window.onload = getLocationAndData;
   </script>
-</head>
-<body>
-  <h2>🌍 Mood Tracker (with GPS, AI Suggestion)</h2>
-  <p id="status">⏳ Menyiapkan...</p>
-  <p id="location">📍 Lokasi: -</p>
-  <p id="weather">🌡️ Suhu: -<br>⛅ Kondisi: -<br>☀️ UV Index: -<br>🌫️ AQI (PM2.5): -</p>
-
-  <hr>
-
-  <label for="sentimentInput"><strong>📝 Bagaimana perasaanmu hari ini?</strong></label><br>
-  <textarea id="sentimentInput" rows="3"></textarea><br><br>
-  <button onclick="analyzeMood()">🔍 Analisis Sentimen</button>
-
-  <div id="sentimentResult" class="card"></div>
-  <div id="saranResult" class="card"></div>
 </body>
 </html>
